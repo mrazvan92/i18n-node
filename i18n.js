@@ -18,7 +18,7 @@ var vsprintf = require('sprintf').vsprintf,
     locales = {},
     api = ['__', '__n', 'getLocale', 'setLocale', 'getCatalog', 'getLocales', 'addLocale', 'removeLocale'],
     pathsep = path.sep || '/', // ---> means win support will be available in node 0.8.x and above
-    defaultLocale, fallbacks, updateFiles, cookiename, extension, directory, indent, objectNotation, logDebugFn, logWarnFn, logErrorFn;
+    defaultLocale, fallbacks, updateFiles, cookiename, extension, directory, indent, objectNotation, logDebugFn, logWarnFn, logErrorFn, autoReload;
 
 // public exports
 var i18n = exports;
@@ -65,11 +65,29 @@ i18n.configure = function i18nConfigure(opt) {
    logWarnFn = (typeof opt.logWarnFn === 'function') ? opt.logWarnFn : warn;
    logErrorFn = (typeof opt.logErrorFn === 'function') ? opt.logErrorFn : error;
 
+  // auto reload locale files on changes
+  autoReload = (typeof opt.autoReload === 'boolean') ? opt.autoReload : true;
+
   // implicitly read all locales
   if (Array.isArray(opt.locales)) {
     opt.locales.forEach(function (l) {
       read(l);
     });
+
+    // auto reload locale file
+    if (autoReload) {
+        // watch changes of locale files (it's called twice because fs.watch is still unstable)
+        fs.watch(directory, function (event, filename) {
+            var re = new RegExp(extension + '$');
+            if (filename && filename.match(re)) {
+                var locale = filename.replace(re, '');
+                if (opt.locales.indexOf(locale) > -1) {
+                    logDebug("Auto reloading locale file '" + filename + "'.");
+                    read(locale);
+                }
+            }
+        });
+    }
   }
 };
 
