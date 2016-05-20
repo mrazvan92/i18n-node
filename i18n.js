@@ -77,18 +77,40 @@ i18n.configure = function i18nConfigure(opt) {
     // auto reload locale file
     if (autoReload) {
         // watch changes of locale files (it's called twice because fs.watch is still unstable)
-        watchFile(directory, function (event, filename) {
-            var re = new RegExp(extension + '$');
-            if (filename && filename.match(re)) {
-                var locale = filename.replace(re, '');
-                if (opt.locales.indexOf(locale) > -1) {
-                    logDebug("Auto reloading locale file '" + filename + "'.");
-                    read(locale);
-                }
-            }
+        realDirectoryPath(directory, function (error, realPath) {
+            opt.locales.forEach(function (l) {
+                watchFileLocale(realPath, l, extension);
+            });
         });
     }
   }
+};
+
+function watchFileLocale(realPath, locale, ext) {
+    var file = realPath + '/' + locale + ext;
+    fs.watchFile(file, function() {
+        read(locale);
+    });
+};
+
+function realDirectoryPath(directory, callback) {
+    fs.lstat(directory, function(err, stats) {
+        if(err) {
+
+            return callback(err);
+        } else if(stats.isSymbolicLink()) {
+
+            fs.readlink(directory, function(err, directory) {
+
+                if(err) return callback(err);
+
+                callback(err, directory);
+            });
+        } else {
+
+            callback(err, directory);
+        }
+    });
 };
 
 i18n.init = function i18nInit(request, response, next) {
@@ -753,30 +775,6 @@ function getStorageFilePath(locale) {
     logDebug('will write to ' + filepath);
   }
   return filepath;
-}
-
-/**
- * Helper for watchFile, also handling symlinks
- */
-function watchFile(path, callback) {
-    // Check if it's a link
-    fs.lstat(path, function(err, stats) {
-        if(err) {
-            // Handle errors
-            return callback(err);
-        } else if(stats.isSymbolicLink()) {
-            // Read symlink
-            fs.readlink(path, function(err, realPath) {
-                // Handle errors
-                if(err) return callback(err);
-                // Watch the real file
-                fs.watch(realPath, callback);
-            });
-        } else {
-            // It's not a symlink, just watch it
-            fs.watch(path, callback);
-        }
-    });
 }
 
 /**
